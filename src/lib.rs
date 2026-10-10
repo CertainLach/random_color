@@ -4,7 +4,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use random_color::RandomColor;
+//! use hi_doc_random_color::RandomColor;
 //!
 //! let random_color = RandomColor::new();
 //!
@@ -13,8 +13,8 @@
 //! ```
 //!
 //! ```rust
-//! use random_color::RandomColor;
-//! use random_color::options::{Gamut, Luminosity};
+//! use hi_doc_random_color::RandomColor;
+//! use hi_doc_random_color::options::{Gamut, Luminosity};
 //!
 //! let random_color = RandomColor::new()
 //!     .hue(Gamut::Blue)
@@ -27,7 +27,7 @@
 //! ```rust
 //! use rand::rngs::SmallRng;
 //! use rand::SeedableRng as _;
-//! use random_color::RandomColor;
+//! use hi_doc_random_color::RandomColor;
 //!
 //! let random_color = RandomColor::new();
 //!

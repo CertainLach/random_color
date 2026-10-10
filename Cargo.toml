@@ -1,5 +1,5 @@
 [package]
-name = "random_color"
+name = "hi_doc-random_color"
 version = "2.0.0"
 edition = "2024"
 authors = [
