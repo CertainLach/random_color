@@ -142,7 +142,7 @@ impl RandomColor {
         let rgb = self.hsv_to_rgb(h, s, b);
         let a: f32 = match self.alpha {
             Some(alpha) => alpha,
-            None => rng.random_range(0.0..1.0),
+            None => rng.random_range(0.0..=1.0),
         };
 
         format!("rgba({}, {}, {}, {})", rgb[0], rgb[1], rgb[2], a)
@@ -161,7 +161,7 @@ impl RandomColor {
         let rgb: [u8; 3] = self.hsv_to_rgb(h, s, b);
 
         let alpha = match self.alpha {
-            Some(alpha) => (alpha * 255.0) as u8,
+            Some(alpha) => (alpha * 255.0).round() as u8,
             None => rng.random_range(0..=255),
         };
 
@@ -187,7 +187,7 @@ impl RandomColor {
 
         let alpha: f32 = match self.alpha {
             Some(alpha) => alpha,
-            None => rng.random_range(0.0..1.0),
+            None => rng.random_range(0.0..=1.0),
         };
 
         [
@@ -212,10 +212,10 @@ impl RandomColor {
         let hsv = self.hsv_to_hsl(h, s, b);
         let a: f32 = match self.alpha {
             Some(alpha) => alpha,
-            None => rng.random(),
+            None => rng.random_range(0.0..=1.0),
         };
 
-        format!("hsl({}, {}%, {}%, {})", hsv[0], hsv[1], hsv[2], a)
+        format!("hsla({}, {}%, {}%, {})", hsv[0], hsv[1], hsv[2], a)
     }
 
     /// Generates a random color and returns it as an HSL array.
@@ -249,6 +249,7 @@ impl RandomColor {
             Some(ref gamut) => {
                 let color = self.color_dictionary.get_color_from_gamut(gamut);
                 self.random_within(rng, color.range[0], color.range[1])
+                    .rem_euclid(360)
             }
         }
     }
@@ -258,6 +259,10 @@ impl RandomColor {
     /// Parameters:
     /// * `hue`: The hue of the color.
     fn pick_saturation<R: Rng + ?Sized>(&self, rng: &mut R, hue: &i64) -> i64 {
+        if self.hue == Some(Gamut::Monochrome) {
+            return 0;
+        }
+
         let s_range: (i64, i64) = self.color_dictionary.get_saturation_range(hue);
 
         let s_min = s_range.0;
@@ -362,16 +367,14 @@ impl RandomColor {
         let h = hue;
         let s = saturation as f32 / 100.0;
         let v = brightness as f32 / 100.0;
-        let mut k = (2.0 - s) * v;
-
-        if k > 1.0 {
-            k = 2.0 - k;
-        }
+        let k = (2.0 - s) * v;
+        let d = if k > 1.0 { 2.0 - k } else { k };
+        let s_l = if d > 0.0 { s * v / d } else { 0.0 };
 
         [
             h as u32,
-            ((s * v / k * 10000.0) / 100.0) as u32,
-            (k / 2.0 * 100.0) as u32,
+            (s_l * 100.0).round() as u32,
+            (k / 2.0 * 100.0).round() as u32,
         ]
     }
 }
@@ -521,7 +524,7 @@ mod tests {
     fn generates_color_as_hsl_string() {
         assert_eq!(
             blue_light().random_hsl_string(&mut rng()),
-            "hsl(242, 93%, 16%)"
+            "hsl(242, 94%, 84%)"
         );
     }
 
@@ -529,13 +532,13 @@ mod tests {
     fn generates_color_as_hsla_string() {
         assert_eq!(
             blue_light().random_hsla_string(&mut rng()),
-            "hsl(242, 93%, 16%, 1)"
+            "hsla(242, 94%, 84%, 1)"
         );
     }
 
     #[test]
     fn generates_color_as_hsl_array() {
-        assert_eq!(blue_light().random_hsl_array(&mut rng()), [242, 93, 16]);
+        assert_eq!(blue_light().random_hsl_array(&mut rng()), [242, 94, 84]);
     }
 
     #[test]
@@ -562,6 +565,58 @@ mod tests {
         assert_eq!(rc.random_hex(&mut rng), "#207204");
     }
 
+    #[test]
+    fn hsv_and_hsl_stay_in_range_for_every_option() {
+        let mut rng = rng();
+
+        for gamut in Gamut::ALL {
+            for luminosity in Luminosity::ALL {
+                let rc = RandomColor::new().hue(gamut).luminosity(luminosity);
+
+                for _ in 0..1000 {
+                    let [h, s, v] = rc.random_hsv_array(&mut rng);
+                    assert!(
+                        h < 360 && s <= 100 && v <= 100,
+                        "{gamut:?} {luminosity:?} hsv {h} {s} {v}"
+                    );
+
+                    let [h, s, l] = rc.random_hsl_array(&mut rng);
+                    assert!(
+                        h < 360 && s <= 100 && l <= 100,
+                        "{gamut:?} {luminosity:?} hsl {h} {s} {l}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn monochrome_is_gray() {
+        let mut rng = rng();
+
+        for luminosity in Luminosity::ALL {
+            let rc = RandomColor::new()
+                .hue(Gamut::Monochrome)
+                .luminosity(luminosity);
+
+            for _ in 0..1000 {
+                let [r, g, b] = rc.random_rgb_array(&mut rng);
+                assert!(r == g && g == b, "{luminosity:?} rgb {r} {g} {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn converts_hsv_to_hsl() {
+        let rc = RandomColor::new();
+
+        assert_eq!(rc.hsv_to_hsl(0, 0, 0), [0, 0, 0]);
+        assert_eq!(rc.hsv_to_hsl(0, 0, 100), [0, 0, 100]);
+        assert_eq!(rc.hsv_to_hsl(120, 100, 100), [120, 100, 50]);
+        assert_eq!(rc.hsv_to_hsl(0, 50, 100), [0, 100, 75]);
+        assert_eq!(rc.hsv_to_hsl(242, 31, 99), [242, 94, 84]);
+    }
+
     #[cfg(feature = "rgb_support")]
     mod rgb_support {
         use rand::distr::Distribution as _;
@@ -581,7 +636,7 @@ mod tests {
 
             let sampled: rgb::Rgba<u8> = rc.sample(&mut rng());
 
-            assert_eq!(sampled, rgb::Rgba::new(176, 174, 252, 175));
+            assert_eq!(sampled, rgb::Rgba::new(176, 174, 252, 176));
         }
     }
 
