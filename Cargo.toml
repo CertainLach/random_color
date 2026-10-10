@@ -2,7 +2,10 @@
 name = "random_color"
 version = "2.0.0"
 edition = "2024"
-authors = ["Lucas Maximiliano Marino <lucasmmarino@gmail.com>"]
+authors = [
+	"Lucas Maximiliano Marino <lucasmmarino@gmail.com>",
+	"Yaroslav Bolyukin <iam@lach.pw>",
+]
 license = "MIT"
 readme = "README.md"
 keywords = ["random", "color", "rgb", "rgba", "hsl"]
